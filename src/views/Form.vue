@@ -3,7 +3,7 @@
  * @Author     : itchaox
  * @Date       : 2023-09-26 15:10
  * @LastAuthor : Wang Chao
- * @LastTime   : 2025-03-20 19:30
+ * @LastTime   : 2025-03-20 20:04
  * @desc       : 主要页面
 -->
 <script setup>
@@ -160,11 +160,22 @@
     </div>
 
     <div>{{ $t('label.current') }}</div>
+    <div class="button-group">
+      <el-button
+        type="primary"
+        @click="prevCell"
+        >上一个</el-button
+      >
+      <el-button
+        type="primary"
+        @click="nextCell"
+        >下一个</el-button
+      >
+    </div>
     <div
       class="show-data markdown-body"
       v-html="showHtml"
     ></div>
-    <!-- 添加 markdown-body 类 -->
   </div>
 </template>
 
@@ -214,6 +225,15 @@
     border-radius: 10px;
     overflow: auto; /* 新增：添加滚动条 */
     word-break: break-word; /* 新增：确保长单词或 URL 自动换行 */
+  }
+
+  .button-group {
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
+  .button-group .el-button {
+    margin-right: 10px;
   }
 </style>
 
