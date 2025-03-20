@@ -3,7 +3,7 @@
  * @Author     : itchaox
  * @Date       : 2023-09-26 15:10
  * @LastAuthor : Wang Chao
- * @LastTime   : 2025-03-20 19:26
+ * @LastTime   : 2025-03-20 19:29
  * @desc       : 主要页面
 -->
 <script setup>
@@ -228,13 +228,13 @@
 </style>
 
 <style>
-  /* 引入 GitHub 的 Markdown 样式 */
+  /* 飞书云文档风格的 Markdown 样式 */
   .markdown-body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji',
       'Segoe UI Emoji';
-    font-size: 16px;
-    line-height: 1.5;
-    word-wrap: break-word;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2329;
   }
 
   .markdown-body h1,
@@ -243,30 +243,33 @@
   .markdown-body h4,
   .markdown-body h5,
   .markdown-body h6 {
-    margin-top: 24px;
-    margin-bottom: 16px;
+    margin-top: 1.2em;
+    margin-bottom: 0.6em;
     font-weight: 600;
-    line-height: 1.25;
+    color: #1f2329;
   }
 
   .markdown-body h1 {
-    font-size: 2em;
+    font-size: 1.5em;
+    border-bottom: 1px solid #e5e6eb;
+    padding-bottom: 0.3em;
   }
 
   .markdown-body h2 {
-    font-size: 1.5em;
+    font-size: 1.3em;
   }
 
   .markdown-body h3 {
-    font-size: 1.25em;
+    font-size: 1.1em;
   }
 
   .markdown-body strong {
     font-weight: 600;
+    color: #1f2329;
   }
 
   .markdown-body a {
-    color: #0366d6;
+    color: #3370ff;
     text-decoration: none;
   }
 
@@ -277,23 +280,53 @@
   .markdown-body code {
     padding: 0.2em 0.4em;
     margin: 0;
-    font-size: 85%;
-    background-color: rgba(27, 31, 35, 0.05);
+    font-size: 90%;
+    background-color: #f2f3f5;
     border-radius: 3px;
+    color: #1f2329;
   }
 
   .markdown-body pre {
-    padding: 16px;
+    padding: 12px;
     overflow: auto;
-    font-size: 85%;
+    font-size: 90%;
     line-height: 1.45;
-    background-color: #f6f8fa;
-    border-radius: 3px;
+    background-color: #f2f3f5;
+    border-radius: 4px;
+    color: #1f2329;
   }
 
   .markdown-body blockquote {
     padding: 0 1em;
-    color: #6a737d;
-    border-left: 0.25em solid #dfe2e5;
+    color: #646a73;
+    border-left: 4px solid #e5e6eb;
+    margin: 0;
+  }
+
+  .markdown-body ul,
+  .markdown-body ol {
+    padding-left: 2em;
+    margin: 0.5em 0;
+  }
+
+  .markdown-body li {
+    margin: 0.25em 0;
+  }
+
+  .markdown-body table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+  }
+
+  .markdown-body th,
+  .markdown-body td {
+    border: 1px solid #e5e6eb;
+    padding: 0.5em;
+  }
+
+  .markdown-body th {
+    background-color: #f2f3f5;
+    font-weight: 600;
   }
 </style>
