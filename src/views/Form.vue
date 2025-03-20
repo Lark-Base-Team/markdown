@@ -3,11 +3,18 @@
  * @Author     : itchaox
  * @Date       : 2023-09-26 15:10
  * @LastAuthor : Wang Chao
- * @LastTime   : 2025-03-20 19:20
+ * @LastTime   : 2025-03-20 19:26
  * @desc       : 主要页面
 -->
 <script setup>
   import { bitable } from '@lark-base-open/js-sdk';
+  import { marked } from 'marked'; // 引入 marked 库
+
+  // 配置 marked
+  marked.setOptions({
+    gfm: true, // 支持 GitHub Flavored Markdown
+    breaks: true, // 将换行符转换为 <br>
+  });
 
   // 国际化
   import { useI18n } from 'vue-i18n';
@@ -30,7 +37,8 @@
   const recordId = ref();
 
   const currentValue = ref();
-  const showData = ref(''); // 新增：用于存储展示区域的数据
+  const showData = ref(''); // 用于存储展示区域的数据
+  const showHtml = computed(() => marked(showData.value)); // 将 Markdown 转换为 HTML
 
   onMounted(async () => {
     databaseList.value = await base.getTableMetaList();
@@ -95,7 +103,7 @@
       let data = await table.getCellValue(currentFieldId.value, recordId.value);
       if (data && data[0].text !== currentValue.value) {
         currentValue.value = data[0].text;
-        showData.value = data[0].text; // 新增：将单元格内容赋值给展示区域
+        showData.value = data[0].text; // 将单元格内容赋值给展示区域
       }
     }
   });
@@ -152,8 +160,11 @@
     </div>
 
     <div>{{ $t('label.current') }}</div>
-    <div class="show-data">{{ showData }}</div>
-    <!-- 修改：展示区域绑定 showData -->
+    <div
+      class="show-data markdown-body"
+      v-html="showHtml"
+    ></div>
+    <!-- 添加 markdown-body 类 -->
   </div>
 </template>
 
@@ -213,5 +224,76 @@
     .el-select-dropdown__item.selected {
       color: rgb(20, 86, 240);
     }
+  }
+</style>
+
+<style>
+  /* 引入 GitHub 的 Markdown 样式 */
+  .markdown-body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji',
+      'Segoe UI Emoji';
+    font-size: 16px;
+    line-height: 1.5;
+    word-wrap: break-word;
+  }
+
+  .markdown-body h1,
+  .markdown-body h2,
+  .markdown-body h3,
+  .markdown-body h4,
+  .markdown-body h5,
+  .markdown-body h6 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .markdown-body h1 {
+    font-size: 2em;
+  }
+
+  .markdown-body h2 {
+    font-size: 1.5em;
+  }
+
+  .markdown-body h3 {
+    font-size: 1.25em;
+  }
+
+  .markdown-body strong {
+    font-weight: 600;
+  }
+
+  .markdown-body a {
+    color: #0366d6;
+    text-decoration: none;
+  }
+
+  .markdown-body a:hover {
+    text-decoration: underline;
+  }
+
+  .markdown-body code {
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    background-color: rgba(27, 31, 35, 0.05);
+    border-radius: 3px;
+  }
+
+  .markdown-body pre {
+    padding: 16px;
+    overflow: auto;
+    font-size: 85%;
+    line-height: 1.45;
+    background-color: #f6f8fa;
+    border-radius: 3px;
+  }
+
+  .markdown-body blockquote {
+    padding: 0 1em;
+    color: #6a737d;
+    border-left: 0.25em solid #dfe2e5;
   }
 </style>
