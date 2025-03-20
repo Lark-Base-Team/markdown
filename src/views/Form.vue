@@ -3,7 +3,7 @@
  * @Author     : itchaox
  * @Date       : 2023-09-26 15:10
  * @LastAuthor : Wang Chao
- * @LastTime   : 2025-03-20 19:29
+ * @LastTime   : 2025-03-20 19:30
  * @desc       : 主要页面
 -->
 <script setup>
@@ -212,6 +212,8 @@
     border: 1px solid #ccc;
     padding: 10px;
     border-radius: 10px;
+    overflow: auto; /* 新增：添加滚动条 */
+    word-break: break-word; /* 新增：确保长单词或 URL 自动换行 */
   }
 </style>
 
