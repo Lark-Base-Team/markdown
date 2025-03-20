@@ -3,7 +3,7 @@
  * @Author     : itchaox
  * @Date       : 2023-09-26 15:10
  * @LastAuthor : Wang Chao
- * @LastTime   : 2025-02-27 06:39
+ * @LastTime   : 2025-03-20 19:20
  * @desc       : 主要页面
 -->
 <script setup>
@@ -30,6 +30,7 @@
   const recordId = ref();
 
   const currentValue = ref();
+  const showData = ref(''); // 新增：用于存储展示区域的数据
 
   onMounted(async () => {
     databaseList.value = await base.getTableMetaList();
@@ -88,14 +89,13 @@
     databaseId.value = event.data.tableId;
     viewId.value = event.data.viewId;
 
-    // FIXME 数据表切换后，视图自动切换
-
     const table = await base.getActiveTable();
     if (currentFieldId.value && recordId.value) {
       // 修改当前数据
       let data = await table.getCellValue(currentFieldId.value, recordId.value);
       if (data && data[0].text !== currentValue.value) {
         currentValue.value = data[0].text;
+        showData.value = data[0].text; // 新增：将单元格内容赋值给展示区域
       }
     }
   });
@@ -152,7 +152,8 @@
     </div>
 
     <div>{{ $t('label.current') }}</div>
-    <div class="show-data">展示区域数据</div>
+    <div class="show-data">{{ showData }}</div>
+    <!-- 修改：展示区域绑定 showData -->
   </div>
 </template>
 
