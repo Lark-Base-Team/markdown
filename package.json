@@ -1,6 +1,6 @@
 {
-  "name": "Vue Template",
-  "version": "1.0.0",
+  "name": "Markdown Max",
+  "version": "1.0.1",
   "scripts": {
     "dev": "vite",
     "start": "vite",
