@@ -1,5 +1,5 @@
 <!--
- * @Version    : v1.00
+ * @Version    : v1.01
  * @Author     : itchaox
  * @Date       : 2023-09-26 15:10
  * @LastAuthor : Wang Chao
@@ -7,6 +7,7 @@
  * @desc       : 主要页面
 -->
 <script setup>
+  import { ref, computed, onMounted } from 'vue';
   import { bitable } from '@lark-base-open/js-sdk';
   import { marked } from 'marked'; // 引入 marked 库
   import { ElMessage } from 'element-plus'; // 导入 ElMessage 组件
@@ -17,475 +18,393 @@
     breaks: true, // 将换行符转换为 <br>
   });
 
-  // 国际化
-  import { useI18n } from 'vue-i18n';
-  const { t } = useI18n();
-
-  // 选择模式 cell 单元格; field 字段; database 数据表
-  const selectModel = ref('cell');
-
-  const databaseList = ref();
-  const databaseId = ref();
-  const viewList = ref();
-  const viewId = ref();
-  const fieldList = ref();
-  const fieldId = ref();
-
-  const base = bitable.base;
-
-  // 当前点击字段id
-  const currentFieldId = ref();
-  const recordId = ref();
-
-  const currentValue = ref();
+  // 状态变量
+  const currentValue = ref('');
   const showData = ref(''); // 用于存储展示区域的数据
   const showHtml = computed(() => marked(showData.value)); // 将 Markdown 转换为 HTML
+  
+  // 导航状态
+  const isLoading = ref(false);
+  const currentRecordId = ref(null);
+  const recordList = ref([]);
+  const currentIndex = ref(-1);
+  
+  const base = bitable.base;
 
-  // 添加调试状态变量
-  const showDebugInfo = ref(false);
-  const rawData = ref(null);
-  const copySuccess = ref(false); // 添加复制成功状态
-  const isEditMode = ref(false); // 添加编辑模式状态
-  const editContent = ref(''); // 编辑内容
-
-  // 切换编辑模式
-  function toggleEditMode() {
-    if (!isEditMode.value) {
-      // 进入编辑模式，复制当前内容到编辑区
-      editContent.value = showData.value;
-    } else {
-      // 退出编辑模式，更新显示内容并处理空行
-      let content = editContent.value;
-      // 去除多余的空行
-      content = content.replace(/\n\s*\n/g, '\n');
-      showData.value = content;
+  // 简单的复制功能
+  const copyContent = async () => {
+    if (!showData.value) {
+      ElMessage.warning('没有可复制的内容');
+      return;
     }
-    isEditMode.value = !isEditMode.value;
-  }
-
-  // 保存内容到单元格
-  async function saveToCell() {
+    
     try {
-      if (!currentFieldId.value || !recordId.value) {
-        throw new Error('未选择单元格');
-      }
-      
-      // 处理文本中的多余空行
-      let content = editContent.value;
-      content = content.replace(/\n\s*\n/g, '\n');
-      
-      const table = await base.getActiveTable();
-      
-      // 将内容保存回单元格
-      await table.setCellValue(currentFieldId.value, recordId.value, [{
-        type: 'text',
-        text: content
-      }]);
-      
-      // 更新显示内容
-      showData.value = content;
-      editContent.value = content;
-      isEditMode.value = false;
-      
-      // 显示保存成功提示
-      ElMessage({
-        message: '保存成功',
-        type: 'success',
-        duration: 2000
-      });
-    } catch (error) {
-      console.error('保存单元格内容时出错:', error);
-      ElMessage({
-        message: '保存失败: ' + error.message,
-        type: 'error',
-        duration: 3000
-      });
-    }
-  }
-
-  // 复制Markdown内容到剪贴板
-  async function copyMarkdown() {
-    try {
-      // 直接使用document API，避免navigator.clipboard可能的权限问题
-      const textArea = document.createElement('textarea');
-      textArea.value = showData.value;
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      
-      copySuccess.value = true;
-      setTimeout(() => {
-        copySuccess.value = false;
-      }, 2000);
-      
-      // 显示复制成功提示
-      ElMessage({
-        message: '复制成功',
-        type: 'success',
-        duration: 2000
-      });
+      await navigator.clipboard.writeText(showData.value);
+      ElMessage.success('复制成功');
     } catch (err) {
       console.error('复制失败:', err);
-      ElMessage({
-        message: '复制失败: ' + err.message,
-        type: 'error',
-        duration: 3000
-      });
-    }
-  }
-
-  onMounted(async () => {
-    databaseList.value = await base.getTableMetaList();
-  });
-
-  // 切换数据表, 默认选择第一个视图
-  async function databaseChange() {
-    if (selectModel.value === 'field') {
-      const table = await base.getTable(databaseId.value);
-      viewList.value = await table.getViewMetaList();
-      viewId.value = viewList.value[0]?.id;
-    }
-  }
-
-  // 根据视图列表获取字段列表
-  watch(viewId, async (newValue, oldValue) => {
-    const table = await base.getTable(databaseId.value);
-    const view = await table.getViewById(newValue);
-    const _list = await view.getFieldMetaList();
-
-    // 只展示文本相关字段
-    fieldList.value = _list.filter((item) => item.type === 1);
-  });
-
-  // 切换选择模式时,重置选择
-  watch(selectModel, async (newValue, oldValue) => {
-    if (newValue === 'cell') return;
-    // 单列和数据表模式，默认选中当前数据表和当前视图
-
-    const selection = await base.getSelection();
-    databaseId.value = selection.tableId;
-
-    if (newValue === 'field') {
-      fieldId.value = '';
-      fieldList.value = [];
-      viewId.value = '';
-
-      const table = await base.getTable(databaseId.value);
-      viewList.value = await table.getViewMetaList();
-      viewId.value = selection.viewId;
-    }
-  });
-
-  // 数据表修改后，自动获取视图列表
-  watchEffect(async () => {
-    const table = await base.getTable(databaseId.value);
-    viewList.value = await table.getViewMetaList();
-  });
-
-  // 实现上一个和下一个单元格的功能
-  async function prevCell() {
-    try {
-      const table = await base.getActiveTable();
-      const view = await table.getViewById(viewId.value);
-      
-      // 获取当前视图的所有记录ID
-      const recordIds = await view.getVisibleRecordIdList();
-      if (!recordIds || recordIds.length === 0) return;
-      
-      // 找到当前记录的索引
-      const currentIndex = recordIds.findIndex(id => id === recordId.value);
-      if (currentIndex === -1) return;
-      
-      // 计算上一个记录的索引（循环到最后一个）
-      const prevIndex = (currentIndex - 1 + recordIds.length) % recordIds.length;
-      const prevRecordId = recordIds[prevIndex];
-      
-      // 设置选择并获取数据
-      await base.setSelection({
-        tableId: databaseId.value,
-        viewId: viewId.value,
-        recordId: prevRecordId,
-        fieldId: currentFieldId.value
-      });
-    } catch (error) {
-      console.error('导航到上一个单元格时出错:', error);
-    }
-  }
-  
-  async function nextCell() {
-    try {
-      const table = await base.getActiveTable();
-      const view = await table.getViewById(viewId.value);
-      
-      // 获取当前视图的所有记录ID
-      const recordIds = await view.getVisibleRecordIdList();
-      if (!recordIds || recordIds.length === 0) return;
-      
-      // 找到当前记录的索引
-      const currentIndex = recordIds.findIndex(id => id === recordId.value);
-      if (currentIndex === -1) return;
-      
-      // 计算下一个记录的索引（循环到第一个）
-      const nextIndex = (currentIndex + 1) % recordIds.length;
-      const nextRecordId = recordIds[nextIndex];
-      
-      // 设置选择并获取数据
-      await base.setSelection({
-        tableId: databaseId.value,
-        viewId: viewId.value,
-        recordId: nextRecordId,
-        fieldId: currentFieldId.value
-      });
-    } catch (error) {
-      console.error('导航到下一个单元格时出错:', error);
-    }
-  }
-
-  base.onSelectionChange(async (event) => {
-    // 获取点击的字段id和记录id
-    currentFieldId.value = event.data.fieldId;
-    recordId.value = event.data.recordId;
-
-    // 获取当前数据表和视图
-    databaseId.value = event.data.tableId;
-    viewId.value = event.data.viewId;
-
-    const table = await base.getActiveTable();
-    if (currentFieldId.value && recordId.value) {
-      // 修改当前数据
-      let data = await table.getCellValue(currentFieldId.value, recordId.value);
-      // 保存原始数据用于调试
-      rawData.value = JSON.stringify(data, null, 2);
-      if (data) {
-        // 处理不同类型的单元格数据
-        let textContent = '';
-        if (Array.isArray(data)) {
-          // 如果是数组，尝试从每个元素中提取文本
-          textContent = data.map(item => item.text || item.toString()).filter(Boolean).join('\n');
-        } else if (typeof data === 'object' && data !== null) {
-          // 如果是对象，尝试获取text属性
-          textContent = data.text || JSON.stringify(data);
-        } else {
-          // 直接使用数据
-          textContent = String(data);
-        }
-        
-        // 去除多余的空行
-        textContent = textContent.replace(/\n\s*\n/g, '\n');
-        
-        currentValue.value = textContent;
-        showData.value = textContent; // 将单元格内容赋值给展示区域
-        console.log('获取到的单元格内容:', textContent); // 添加日志便于调试
+      // 备选复制方法
+      try {
+        const textArea = document.createElement('textarea');
+        textArea.value = showData.value;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        ElMessage.success('复制成功');
+      } catch (fallbackErr) {
+        ElMessage.error('复制失败，请手动复制');
       }
     }
+  };
+
+  // 安全获取单元格文本
+  const getCellText = async (tableId, recordId, fieldId) => {
+    try {
+      isLoading.value = true;
+      
+      if (!tableId || !recordId || !fieldId) {
+        console.error('参数无效:', { tableId, recordId, fieldId });
+        return '';
+      }
+      
+      // 获取表格
+      const table = await base.getTable(tableId);
+      if (!table) {
+        console.error('获取表格失败');
+        return '';
+      }
+      
+      try {
+        // 获取单元格值
+        const cellValue = await table.getCellValue(fieldId, recordId);
+        
+        // 处理不同类型的值
+        if (!cellValue) {
+          return '';
+        } else if (typeof cellValue === 'string') {
+          return cellValue;
+        } else if (Array.isArray(cellValue)) {
+          // 安全处理数组
+          const textParts = [];
+          for (let i = 0; i < cellValue.length; i++) {
+            try {
+              const item = cellValue[i];
+              if (typeof item === 'string') {
+                textParts.push(item);
+              } else if (item && typeof item === 'object' && item.text) {
+                textParts.push(item.text);
+              }
+            } catch (e) {
+              console.warn('处理数组元素出错:', e);
+            }
+          }
+          return textParts.join('\n');
+        } else if (cellValue && typeof cellValue === 'object') {
+          // 安全处理对象
+          if (cellValue.text) {
+            return cellValue.text;
+          } else {
+            // 尝试其他常见属性
+            const valueProps = ['value', 'name', 'title', 'content'];
+            for (const prop of valueProps) {
+              if (cellValue[prop] && typeof cellValue[prop] === 'string') {
+                return cellValue[prop];
+              }
+            }
+            // 最后尝试 JSON 字符串化（排除 context 属性）
+            try {
+              // 创建一个新对象，排除 context 属性
+              const safeObj = {};
+              Object.keys(cellValue)
+                .filter(key => key !== 'context')
+                .forEach(key => {
+                  try {
+                    safeObj[key] = cellValue[key];
+                  } catch (e) {
+                    // 忽略无法访问的属性
+                  }
+                });
+              return JSON.stringify(safeObj);
+            } catch (e) {
+              console.warn('JSON 序列化失败:', e);
+              return '[复杂对象]';
+            }
+          }
+        } else {
+          // 其他类型，尝试转换为字符串
+          return String(cellValue);
+        }
+      } catch (cellError) {
+        console.error('获取单元格值失败:', cellError);
+        return '[获取数据出错]';
+      }
+    } catch (e) {
+      console.error('获取文本失败:', e);
+      return '[处理失败]';
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // 导航到下一个记录
+  const goToNext = async () => {
+    if (isLoading.value || currentIndex.value < 0 || currentIndex.value >= recordList.value.length - 1) {
+      return;
+    }
+    
+    try {
+      isLoading.value = true;
+      
+      // 增加索引并获取下一个记录ID
+      currentIndex.value += 1;
+      currentRecordId.value = recordList.value[currentIndex.value];
+      
+      // 获取记录对应的当前单元格数据
+      const selection = await base.getSelection();
+      if (!selection || !selection.fieldId || !selection.tableId) {
+        throw new Error('无效的选择信息');
+      }
+      
+      // 获取并更新内容
+      const content = await getCellText(selection.tableId, currentRecordId.value, selection.fieldId);
+      showData.value = content;
+      currentValue.value = content;
+      
+      // 不再尝试更新表格选择状态，只更新界面显示
+      /* 
+      await base.setSelection({
+        tableId: selection.tableId,
+        viewId: selection.viewId,
+        fieldId: selection.fieldId,
+        recordId: currentRecordId.value
+      });
+      */
+    } catch (err) {
+      console.error('导航到下一个记录失败:', err);
+      ElMessage.error('导航失败: ' + (err.message || '未知错误'));
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // 导航到上一个记录
+  const goToPrevious = async () => {
+    if (isLoading.value || currentIndex.value <= 0) {
+      return;
+    }
+    
+    try {
+      isLoading.value = true;
+      
+      // 减少索引并获取上一个记录ID
+      currentIndex.value -= 1;
+      currentRecordId.value = recordList.value[currentIndex.value];
+      
+      // 获取记录对应的当前单元格数据
+      const selection = await base.getSelection();
+      if (!selection || !selection.fieldId || !selection.tableId) {
+        throw new Error('无效的选择信息');
+      }
+      
+      // 获取并更新内容
+      const content = await getCellText(selection.tableId, currentRecordId.value, selection.fieldId);
+      showData.value = content;
+      currentValue.value = content;
+      
+      // 不再尝试更新表格选择状态，只更新界面显示
+      /*
+      await base.setSelection({
+        tableId: selection.tableId,
+        viewId: selection.viewId,
+        fieldId: selection.fieldId,
+        recordId: currentRecordId.value
+      });
+      */
+    } catch (err) {
+      console.error('导航到上一个记录失败:', err);
+      ElMessage.error('导航失败: ' + (err.message || '未知错误'));
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // 加载记录列表
+  const loadRecordList = async () => {
+    try {
+      isLoading.value = true;
+      
+      // 获取当前选择信息
+      const selection = await base.getSelection();
+      if (!selection || !selection.tableId) {
+        console.warn('无效的选择信息');
+        return;
+      }
+      
+      // 获取表格和视图
+      const table = await base.getTable(selection.tableId);
+      if (!table) {
+        console.error('无法获取表格');
+        return;
+      }
+      
+      let view;
+      try {
+        view = await table.getViewById(selection.viewId);
+      } catch (viewError) {
+        console.warn('获取视图失败，尝试获取活动视图:', viewError);
+        view = await table.getActiveView();
+      }
+      
+      if (!view) {
+        console.error('无法获取视图');
+        return;
+      }
+      
+      // 获取记录列表
+      const records = await view.getVisibleRecordIdList();
+      
+      if (!records || records.length === 0) {
+        console.warn('当前视图没有记录');
+        recordList.value = [];
+        currentIndex.value = -1;
+        return;
+      }
+      
+      recordList.value = records;
+      console.log('加载记录列表成功，共', records.length, '条记录');
+      
+      // 查找当前记录索引
+      if (selection.recordId) {
+        currentRecordId.value = selection.recordId;
+        currentIndex.value = records.findIndex(id => id === selection.recordId);
+        
+        if (currentIndex.value === -1) {
+          console.warn('当前记录不在可见记录列表中');
+          currentIndex.value = 0;
+          currentRecordId.value = records[0];
+        }
+      } else {
+        currentIndex.value = 0;
+        currentRecordId.value = records[0];
+      }
+    } catch (err) {
+      console.error('加载记录列表失败:', err);
+      ElMessage.error('加载记录列表失败');
+      recordList.value = [];
+      currentIndex.value = -1;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // 处理选择变化
+  const handleSelectionChange = async (event) => {
+    try {
+      if (!event || !event.data) {
+        return;
+      }
+      
+      const { tableId, viewId, recordId, fieldId } = event.data;
+      
+      if (!tableId || !recordId || !fieldId) {
+        return;
+      }
+      
+      // 获取并显示单元格内容
+      const content = await getCellText(tableId, recordId, fieldId);
+      showData.value = content;
+      currentValue.value = content;
+      
+      // 加载/更新记录列表并找到当前索引
+      await loadRecordList();
+    } catch (err) {
+      console.error('处理选择变化时出错:', err);
+    }
+  };
+
+  // 监听选择变化
+  onMounted(() => {
+    base.onSelectionChange(handleSelectionChange);
   });
 </script>
 
 <template>
   <div class="main">
-    <div class="label">
-      <div class="text">{{ $t('label.base') }}</div>
-      <el-select
-        v-model="databaseId"
-        :placeholder="$t('placeholder.base')"
-        @change="databaseChange"
-        popper-class="selectStyle"
-      >
-        <el-option
-          v-for="item in databaseList"
-          :key="item.id"
-          :label="item.name"
-          :value="item.id"
-        />
-      </el-select>
-    </div>
-
-    <div class="label">
-      <div class="text">{{ $t('label.view') }}</div>
-      <el-select
-        v-model="viewId"
-        :placeholder="$t('placeholder.view')"
-        popper-class="selectStyle"
-      >
-        <el-option
-          v-for="item in viewList"
-          :key="item.id"
-          :label="item.name"
-          :value="item.id"
-        />
-      </el-select>
-    </div>
-    <div class="label">
-      <div class="text">{{ $t('label.field') }}</div>
-      <el-select
-        v-model="fieldId"
-        :placeholder="$t('placeholder.field')"
-        popper-class="selectStyle"
-      >
-        <el-option
-          v-for="item in fieldList"
-          :key="item.id"
-          :label="item.name"
-          :value="item.id"
-        />
-      </el-select>
-    </div>
-
-    <div>{{ $t('label.current') }}</div>
-    <div class="button-group">
-      <el-button
-        type="primary"
-        @click="prevCell"
-        >上一个</el-button
-      >
-      <el-button
-        type="primary"
-        @click="nextCell"
-        >下一个</el-button
-      >
-      <el-button
-        type="info"
-        @click="showDebugInfo = !showDebugInfo"
-        >{{ showDebugInfo ? '隐藏调试信息' : '显示调试信息' }}</el-button
-      >
-      <el-button
-        type="success"
-        @click="copyMarkdown"
-        >{{ copySuccess ? '复制成功' : '复制Markdown' }}</el-button
-      >
-      <el-button
-        :type="isEditMode ? 'warning' : 'primary'"
-        @click="toggleEditMode"
-        >{{ isEditMode ? '保存编辑' : '编辑内容' }}</el-button
-      >
-      <el-button
-        v-if="isEditMode"
-        type="danger"
-        @click="saveToCell"
-        >保存到表格</el-button
-      >
+    <!-- 操作按钮区域 -->
+    <div class="action-bar">
+      <div class="navigation-buttons">
+        <el-button type="primary" size="small" @click="goToPrevious" :disabled="currentIndex <= 0 || isLoading">
+          上一个
+        </el-button>
+        <span v-if="recordList.length > 0" class="record-indicator">
+          {{ currentIndex + 1 }} / {{ recordList.length }}
+        </span>
+        <el-button type="primary" size="small" @click="goToNext" :disabled="currentIndex >= recordList.length - 1 || isLoading">
+          下一个
+        </el-button>
+      </div>
+      <el-button type="success" size="small" @click="copyContent" :disabled="!showData">
+        复制内容
+      </el-button>
     </div>
     
-    <!-- 调试信息 -->
-    <div v-if="showDebugInfo" class="debug-info">
-      <h3>原始数据:</h3>
-      <pre>{{ rawData }}</pre>
-    </div>
-    
-    <!-- 编辑模式 -->
-    <div v-if="isEditMode" class="edit-area">
-      <el-input
-        v-model="editContent"
-        type="textarea"
-        :rows="15"
-        placeholder="编辑Markdown内容..."
-      />
+    <!-- 加载指示器 -->
+    <div v-if="isLoading" class="loading-indicator">
+      正在加载...
     </div>
     
     <!-- 预览模式 -->
-    <div
-      v-else
-      class="show-data markdown-body"
-      v-html="showHtml"
-    ></div>
+    <div v-else class="show-data markdown-body" v-html="showHtml"></div>
   </div>
 </template>
 
 <style scoped>
   .main {
     font-weight: normal;
+    padding: 16px 24px;
   }
-
-  .label {
+  
+  .action-bar {
     display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  
+  .navigation-buttons {
+    display: flex;
+    gap: 8px;
     align-items: center;
-    margin-bottom: 20px;
-
-    .text {
-      width: 70px;
-      margin-right: 10px;
-      white-space: nowrap;
-      font-size: 14px;
-    }
-
-    :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-      color: #fff;
-      background-color: rgb(20, 86, 240);
-      border-color: rgb(20, 86, 240);
-      box-shadow: 1px 0 0 0 rgb(20, 86, 240);
-    }
-
-    :deep(.el-radio-button__inner) {
-      font-weight: 300;
-    }
-
-    :deep(.el-radio-button__inner:hover) {
-      color: rgb(20, 86, 240);
-    }
-
-    :deep(.el-input__inner) {
-      font-weight: 300;
-    }
+  }
+  
+  .record-indicator {
+    font-size: 14px;
+    color: #606266;
+    margin: 0 8px;
+  }
+  
+  .loading-indicator {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    color: #909399;
+    font-size: 14px;
   }
 
   .show-data {
-    margin-top: 20px;
     width: 100%;
-    height: 60vh;
-    border: 1px solid #ccc;
-    padding: 15px;
-    border-radius: 10px;
+    min-height: calc(100vh - 80px);
+    border: none;
+    padding: 0;
+    border-radius: 0;
     overflow: auto;
     word-break: break-word;
-    white-space: pre-wrap;
+    white-space: normal;
     max-width: 100%;
     box-sizing: border-box;
-  }
-
-  .button-group {
-    margin-top: 10px;
-    margin-bottom: 10px;
-  }
-
-  .button-group .el-button {
-    margin-right: 10px;
-  }
-
-  .debug-info {
-    margin-top: 10px;
-    padding: 10px;
-    background-color: #f8f8f8;
-    border: 1px dashed #ccc;
-    border-radius: 5px;
-    font-family: monospace;
-    font-size: 12px;
-    overflow: auto;
-    max-height: 200px;
-  }
-  
-  .edit-area {
-    margin-top: 20px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .edit-area :deep(.el-textarea__inner) {
-    font-family: monospace;
-    height: 60vh;
-    resize: none;
-  }
-</style>
-
-<style>
-  .selectStyle {
-    .el-select-dropdown__item {
-      font-weight: 300 !important;
-    }
-
-    .el-select-dropdown__item.selected {
-      color: rgb(20, 86, 240);
-    }
   }
 </style>
 
@@ -497,29 +416,11 @@
     font-size: 14px;
     line-height: 1.6;
     color: #1f2329;
+    max-width: 850px;
+    margin: 0 auto;
   }
 
-  .markdown-body p {
-    margin-top: 0.5em;
-    margin-bottom: 0.5em;
-  }
-  
-  /* 调整列表项间距 */
-  .markdown-body ul,
-  .markdown-body ol {
-    padding-left: 2em;
-    margin: 0.5em 0;
-  }
-
-  .markdown-body li {
-    margin: 0.15em 0;
-  }
-  
-  /* 减少段落之间的额外空间 */
-  .markdown-body p + p {
-    margin-top: 0.3em;
-  }
-
+  /* 标题样式 */
   .markdown-body h1,
   .markdown-body h2,
   .markdown-body h3,
@@ -527,23 +428,39 @@
   .markdown-body h5,
   .markdown-body h6 {
     margin-top: 1.2em;
-    margin-bottom: 0.6em;
+    margin-bottom: 0.5em;
     font-weight: 600;
+    line-height: 1.25;
     color: #1f2329;
   }
 
   .markdown-body h1 {
-    font-size: 1.5em;
+    font-size: 1.75em;
+    margin-top: 0.5em;
+    padding-bottom: 0.2em;
     border-bottom: 1px solid #e5e6eb;
-    padding-bottom: 0.3em;
   }
 
   .markdown-body h2 {
-    font-size: 1.3em;
+    font-size: 1.5em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid #e5e6eb;
   }
 
-  .markdown-body h3 {
-    font-size: 1.1em;
+  .markdown-body h3 { font-size: 1.25em; }
+  .markdown-body h4 { font-size: 1em; }
+  .markdown-body h5 { font-size: 0.875em; }
+  .markdown-body h6 { font-size: 0.85em; }
+
+  /* 段落和文本样式 */
+  .markdown-body p {
+    margin: 0.5em 0;
+    line-height: 1.6;
+    white-space: normal;
+  }
+
+  .markdown-body p + p {
+    margin-top: 0.8em;
   }
 
   .markdown-body strong {
@@ -560,46 +477,132 @@
     text-decoration: underline;
   }
 
+  /* 代码样式 */
   .markdown-body code {
     padding: 0.2em 0.4em;
     margin: 0;
-    font-size: 90%;
-    background-color: #f2f3f5;
+    font-size: 85%;
+    background-color: rgba(175,184,193,0.2);
     border-radius: 3px;
-    color: #1f2329;
+    font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
   }
 
   .markdown-body pre {
     padding: 12px;
     overflow: auto;
-    font-size: 90%;
+    font-size: 85%;
     line-height: 1.45;
-    background-color: #f2f3f5;
-    border-radius: 4px;
-    color: #1f2329;
+    background-color: #f6f8fa;
+    border-radius: 6px;
+    margin: 0.8em 0;
   }
 
+  .markdown-body pre code {
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+    border: 0;
+    white-space: pre;
+    font-size: inherit;
+  }
+
+  /* 引用样式 */
   .markdown-body blockquote {
     padding: 0 1em;
-    color: #646a73;
-    border-left: 4px solid #e5e6eb;
-    margin: 0;
+    color: #57606a;
+    border-left: 0.25em solid #d0d7de;
+    margin: 0.8em 0;
   }
 
+  /* 列表样式 */
+  .markdown-body ul,
+  .markdown-body ol {
+    padding-left: 1.5em;
+    margin: 0.5em 0;
+  }
+
+  .markdown-body li {
+    margin: 0.2em 0;
+    line-height: 1.6;
+  }
+
+  .markdown-body li + li {
+    margin-top: 0.1em;
+  }
+
+  /* 表格样式 */
   .markdown-body table {
-    border-collapse: collapse;
+    display: table;
     width: 100%;
-    margin: 1em 0;
+    max-width: 100%;
+    overflow: auto;
+    margin: 0.8em 0;
+    border-spacing: 0;
+    border-collapse: collapse;
+    border: 1px solid #d0d7de;
   }
 
-  .markdown-body th,
-  .markdown-body td {
-    border: 1px solid #e5e6eb;
-    padding: 0.5em;
-  }
-
-  .markdown-body th {
-    background-color: #f2f3f5;
+  .markdown-body table th {
     font-weight: 600;
+    background-color: #f6f8fa;
+  }
+
+  .markdown-body table th,
+  .markdown-body table td {
+    padding: 6px 12px;
+    border: 1px solid #d0d7de;
+    line-height: 1.5;
+  }
+
+  .markdown-body table tr {
+    background-color: #ffffff;
+    border-top: 1px solid #d0d7de;
+  }
+
+  .markdown-body table tr:nth-child(2n) {
+    background-color: #f6f8fa;
+  }
+
+  /* 水平线样式 */
+  .markdown-body hr {
+    height: 1px;
+    padding: 0;
+    margin: 16px 0;
+    background-color: #d0d7de;
+    border: 0;
+  }
+
+  /* 图片样式 */
+  .markdown-body img {
+    max-width: 100%;
+    box-sizing: border-box;
+    border-radius: 3px;
+  }
+
+  /* 调整列表嵌套间距 */
+  .markdown-body ul ul,
+  .markdown-body ul ol,
+  .markdown-body ol ul,
+  .markdown-body ol ol {
+    margin: 0.2em 0;
+  }
+
+  /* 调整段落在列表中的表现 */
+  .markdown-body li > p {
+    margin: 0.3em 0;
+  }
+
+  /* 调整代码块在列表中的表现 */
+  .markdown-body li > pre {
+    margin: 0.3em 0;
+  }
+
+  /* 处理连续标题的间距 */
+  .markdown-body h1 + h2,
+  .markdown-body h2 + h3,
+  .markdown-body h3 + h4,
+  .markdown-body h4 + h5,
+  .markdown-body h5 + h6 {
+    margin-top: 0.8em;
   }
 </style>

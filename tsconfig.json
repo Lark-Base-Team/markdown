@@ -23,7 +23,7 @@
       "@/*": ["src/*"],
       "@build/*": ["build/*"]
     },
-    "types": ["node", "vite/client", "element-plus/global"],
+    "types": ["node"],
     "typeRoots": ["./node_modules/@types/", "./types"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "vite.config.ts", "auto-imports.d.ts"],
